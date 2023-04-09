@@ -240,10 +240,7 @@ void fileIO(char * args[], char* inputFile, char* outputFile, int option){
             // We replace de standard input with the appropriate file
             dup2(fileDescriptor, STDIN_FILENO);
             close(fileDescriptor);
-            // Same as before for the output file
-            fileDescriptor = open(outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-            dup2(fileDescriptor, STDOUT_FILENO);
-            close(fileDescriptor);
+
         }else if(option == 2){
             // implement standard output append to outputFile
             fileDescriptor = open(outputFile, O_CREAT | O_APPEND | O_WRONLY, 0600);
@@ -491,17 +488,12 @@ int commandHandler(char * args[]){
                 // First we check if the structure given is the correct one,
                 // and if that is the case we call the appropriate method
             }else if (strcmp(args[i],"<") == 0){
-                aux = i+1;
-                if (args[aux] == NULL || args[aux+1] == NULL || args[aux+2] == NULL ){
+                if (args[i+1] == NULL){
                     printf("Not enough input arguments\n");
                     return -1;
-                }else{
-                    if (strcmp(args[aux+1],">") != 0){
-                        printf("Usage: Expected '>' and found %s\n",args[aux+1]);
-                        return -2;
-                    }
                 }
-                fileIO(args_aux,args[i+1],args[i+3],1);
+
+                fileIO(args_aux, args[i+1], NULL,1);
                 return 1;
             }
                 // If '>' is detected, we have output redirection.
