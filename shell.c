@@ -491,8 +491,6 @@ int commandHandler(char * args[]){
             printf("%s\n", getcwd(currentDirectory, 1024));
         }
     }
-        // 'clear' command clears the screen
-    else if (strcmp(args[0],"clear") == 0) system("clear");
         // 'cd' command to change directory
     else if (strcmp(args[0],"cd") == 0) changeDirectory(args);
         // 'environ' command to list the environment variables
