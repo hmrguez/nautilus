@@ -287,6 +287,11 @@ void fileIO(char * args[], char* inputFile, char* outputFile, int option){
             fileDescriptor = open(outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0600);
             dup2(fileDescriptor, STDOUT_FILENO);
             close(fileDescriptor);
+        }else if(option == 2){
+            // implement standard output append to outputFile
+            fileDescriptor = open(outputFile, O_CREAT | O_APPEND | O_WRONLY, 0600);
+            dup2(fileDescriptor, STDOUT_FILENO);
+            close(fileDescriptor);
         }
 
         setenv("parent",getcwd(currentDirectory, 1024),1);
@@ -459,7 +464,7 @@ int commandHandler(char * args[]){
     // We look for the special characters and separate the command itself
     // in a new array for the arguments
     while ( args[j] != NULL){
-        if ( (strcmp(args[j],">") == 0) || (strcmp(args[j],"<") == 0) || (strcmp(args[j],"&") == 0)){
+        if ( (strcmp(args[j],">") == 0) || (strcmp(args[j],"<") == 0) || (strcmp(args[j],"&") == 0) || strcmp(args[j], ">>") == 0){
             break;
         }
         args_aux[j] = args[j];
@@ -553,6 +558,14 @@ int commandHandler(char * args[]){
                     return -1;
                 }
                 fileIO(args_aux,NULL,args[i+1],0);
+                return 1;
+            }
+            else if(strcmp(args[i], ">>") == 0){
+                if (args[i+1] == NULL){
+                    printf("Not enough input arguments\n");
+                    return -1;
+                }
+                fileIO(args_aux,NULL,args[i+1], 2);
                 return 1;
             }
             i++;
