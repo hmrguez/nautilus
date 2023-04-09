@@ -1,22 +1,3 @@
-/*
-  * simple-c-shell.c
-  *
-  * Copyright (c) 2013 Juan Manuel Reyes
-  *
-  * This program is free software: you can redistribute it and/or modify
-  * it under the terms of the GNU General Public License as published by
-  * the Free Software Foundation, either version 3 of the License, or
-  * (at your option) any later version.
-  *
-  * This program is distributed in the hope that it will be useful,
-  * but WITHOUT ANY WARRANTY; without even the implied warranty of
-  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  * GNU General Public License for more details.
-  *
-  * You should have received a copy of the GNU General Public License
-  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,52 +12,38 @@
 #define LIMIT 256 // max number of tokens for a command
 #define MAXLINE 1024 // max number of characters from user input
 
-/**
- * Function used to initialize our shell. We used the approach explained in
- * http://www.gnu.org/software/libc/manual/html_node/Initializing-the-Shell.html
- */
 void init(){
     // See if we are running interactively
-    GBSH_PID = getpid();
+    NTL_PID = getpid();
     // The shell is interactive if STDIN is the terminal
-    GBSH_IS_INTERACTIVE = isatty(STDIN_FILENO);
+    NTL_IS_INTERACTIVE = isatty(STDIN_FILENO);
 
-    if (GBSH_IS_INTERACTIVE) {
+    if (NTL_IS_INTERACTIVE) {
         // Loop until we are in the foreground
-        while (tcgetpgrp(STDIN_FILENO) != (GBSH_PGID = getpgrp()))
-            kill(GBSH_PID, SIGTTIN);
+        while (tcgetpgrp(STDIN_FILENO) != (NTL_PGID = getpgrp()))
+            kill(NTL_PID, SIGTTIN);
 
 
         // Set the signal handlers for SIGCHILD and SIGINT
         act_child.sa_handler = signalHandler_child;
         act_int.sa_handler = signalHandler_int;
 
-        /**The sigaction structure is defined as something like
-
-        struct sigaction {
-            void (*sa_handler)(int);
-            void (*sa_sigaction)(int, siginfo_t *, void *);
-            sigset_t sa_mask;
-            int sa_flags;
-            void (*sa_restorer)(void);
-
-        }*/
 
         sigaction(SIGCHLD, &act_child, 0);
         sigaction(SIGINT, &act_int, 0);
 
         // Put ourselves in our own process group
-        setpgid(GBSH_PID, GBSH_PID); // we make the shell process the new process group leader
-        GBSH_PGID = getpgrp();
-        if (GBSH_PID != GBSH_PGID) {
+        setpgid(NTL_PID, NTL_PID); // we make the shell process the new process group leader
+        NTL_PGID = getpgrp();
+        if (NTL_PID != NTL_PGID) {
             printf("Error, the shell is not process group leader");
             exit(EXIT_FAILURE);
         }
         // Grab control of the terminal
-        tcsetpgrp(STDIN_FILENO, GBSH_PGID);
+        tcsetpgrp(STDIN_FILENO, NTL_PGID);
 
         // Save default terminal attributes for shell
-        tcgetattr(STDIN_FILENO, &GBSH_TMODES);
+        tcgetattr(STDIN_FILENO, &NTL_TMODES);
 
         // Get the current directory that will be used in different methods
         currentDirectory = (char*) calloc(1024, sizeof(char));
@@ -86,21 +53,12 @@ void init(){
     }
 }
 
-/**
- * Method used to print the welcome screen of our shell
- */
 void welcomeScreen(){
     printf("\n\t============================================\n");
-    printf("\t               Simple C Shell\n");
-    printf("\t--------------------------------------------\n");
-    printf("\t             Licensed under GPLv3:\n");
+    printf("\t               Nautilus\n");
     printf("\t============================================\n");
     printf("\n\n");
 }
-
-/**
- * SIGNAL HANDLERS
- */
 
 /**
  * signal handler for SIGCHLD
@@ -213,8 +171,7 @@ int manageEnviron(char * args[], int option){
 }
 
 /**
-* Method for launching a program. It can be run in the background
-* or in the foreground
+* Method for launching a program. It can be run in the background or in the foreground
 */
 void launchProg(char **args, int background){
     int err = -1;

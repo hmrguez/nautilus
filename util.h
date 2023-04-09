@@ -3,10 +3,10 @@
 #define FALSE !TRUE
 
 // Shell pid, pgid, terminal modes
-static pid_t GBSH_PID;
-static pid_t GBSH_PGID;
-static int GBSH_IS_INTERACTIVE;
-static struct termios GBSH_TMODES;
+static pid_t NTL_PID;
+static pid_t NTL_PGID;
+static int NTL_IS_INTERACTIVE;
+static struct termios NTL_TMODES;
 
 static char* currentDirectory;
 extern char** environ;
@@ -19,9 +19,6 @@ int no_reprint_prmpt;
 pid_t pid;
 
 
-/**
- * SIGNAL HANDLERS
- */
 // signal handler for SIGCHLD */
 void signalHandler_child(int p);
 // signal handler for SIGINT
