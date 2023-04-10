@@ -400,6 +400,25 @@ void pipeHandler(char * args[]){
     }
 }
 
+int printHistory(){
+    FILE *file = fopen(".history", "r");
+
+    if (file == NULL) {
+        printf("Error opening file");
+        return -1;
+    }
+
+    char line[256];
+    int i = 0;
+    while(fgets(line, sizeof(line), file) != NULL) {
+        printf("%d %s", i, line);
+        i++;
+    }
+
+    fclose(file);
+    return 0;
+}
+
 /**
 * Method used to handle the commands entered via the standard input
 */
@@ -535,6 +554,14 @@ int commandHandler(char * args[]){
     return 1;
 }
 
+// append to history
+int appendHistory(char * line) {
+    FILE *file;
+    file = fopen(".history", "a");
+    fprintf(file, "%s\n", line);
+    fclose(file);
+    return 0;
+}
 
 /**
 * Main method of our shell
