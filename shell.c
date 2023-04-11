@@ -555,12 +555,29 @@ int commandHandler(char * args[]){
 }
 
 // append to history
-int appendHistory(char * line) {
-    FILE *file;
-    file = fopen(".history", "a");
-    fprintf(file, "%s\n", line);
-    fclose(file);
-    return 0;
+int appendHistory(char ** line) {
+    FILE *history_file;
+    char current_history[1024];
+    int i;
+
+    // Open history file appending
+    history_file = fopen(".history", "a");
+    if (history_file == NULL) {
+        printf("Error opening history file\n");
+        return -1;
+    }
+
+    strcpy(current_history, line[0]);
+    for (i = 1;  line[i] != NULL; i++) {
+        strcat(current_history, " ");
+        strcat(current_history, line[i]);
+    }
+
+    // Append current history to file
+    fprintf(history_file, "%s\n", current_history);
+
+    // Close history file
+    fclose(history_file);
 }
 
 /**
@@ -609,6 +626,9 @@ int main(int argc, char *argv[], char ** envp) {
         while((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) numTokens++;
 
         commandHandler(tokens);
+
+        // append to history
+        appendHistory(tokens);
     }
 
     exit(0);

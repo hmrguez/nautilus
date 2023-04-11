@@ -4,72 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define NTL_RL_BUFSIZE 1024
-char *ntl_read_line(void) {
-    int bufsize = NTL_RL_BUFSIZE;
-    int position = 0;
-    char *buffer = malloc(sizeof(char) * bufsize);
-    int c;
-
-    if (!buffer) {
-        fprintf(stderr, "ntl: allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    while (1){
-        c = getchar();
-
-        if(c==EOF || c=='\n'){
-            buffer[position] = '\0';
-            return buffer;
-        } else {
-            buffer[position] = c;
-        }
-
-        position++;
-
-        if(position >= bufsize){
-            bufsize += NTL_RL_BUFSIZE;
-            buffer = realloc(buffer, bufsize);
-            if(!buffer){
-                fprintf(stderr, "ntl: allocation error\n");
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
-}
-
-#define NTL_TOK_BUFSIZE 64
-#define NTL_TOK_DELIM " \t\r\n\a"
-char **ntl_split_line(char *line){
-    int bufsize = NTL_TOK_BUFSIZE, position = 0;
-    char **tokens = malloc(bufsize * sizeof(char*));
-    char *token;
-
-    if(!tokens){
-        fprintf(stderr, "ntl: allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    token = strtok(line, NTL_TOK_DELIM);
-    while (token != NULL){
-        tokens[position] = token;
-        position++;
-
-        if (position >= bufsize){
-            tokens = realloc(tokens, bufsize * sizeof(char*));
-            if(!tokens){
-                fprintf(stderr, "ntl: allocation error\n");
-                exit(EXIT_FAILURE);
-            }
-        }
-
-        token = strtok(NULL, NTL_TOK_DELIM);
-    }
-
-    tokens[position] = NULL;
-    return tokens;
-}
+#define MAXLINE 1024
+#define LIMIT 256
 
 int ntl_launch(char **args){
     pid_t pid, wpid;
@@ -156,16 +92,24 @@ int ntl_execute(char **args){
 }
 
 void ntl_loop() {
-    char *line = NULL;
-    char **args = NULL;
+    char line[MAXLINE];
+    char * tokens[LIMIT];
+    int numTokens;
     int status = 1;
+
     do{
         printf("ntl> ");
-        line = ntl_read_line();
-        args = ntl_split_line(line);
-        status = ntl_execute(args);
-        free(line);
-        free(args);
+
+        memset ( line, '\0', MAXLINE );
+
+        fgets(line, MAXLINE, stdin);
+        if((tokens[0] = strtok(line," \n\t")) == NULL) continue;
+
+        numTokens = 1;
+        while((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) numTokens++;
+
+        status = ntl_execute(tokens);
+
     } while(status);
 }
 
