@@ -7,7 +7,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <termios.h>
-#include "util.h"
+#include "src/util.h"
 
 #define LIMIT 256 // max number of tokens for a command
 #define MAXLINE 1024 // max number of characters from user input
@@ -255,6 +255,7 @@ void fileIO(char * args[], char* inputFile, char* outputFile, int option){
             kill(getpid(),SIGTERM);
         }
     }
+
     waitpid(pid,NULL,0);
 }
 
