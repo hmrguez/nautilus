@@ -7,7 +7,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <termios.h>
-#include "src/util.h"
+#include "include/util.h"
 
 #define MAXLINE 1024
 #define LIMIT 256
@@ -53,9 +53,6 @@ void init(){
     }
 }
 
-/**
- * signal handler for SIGCHLD
- */
 void signalHandler_child(int p){
     /* Wait for all dead processes.
      * We use a non-blocking call (WNOHANG) to be sure this signal handler will not
@@ -65,9 +62,6 @@ void signalHandler_child(int p){
     printf("\n");
 }
 
-/**
- * Signal handler for SIGINT
- */
 void signalHandler_int(int p){
     // We send a SIGTERM signal to the child process
     if (kill(pid,SIGTERM) == 0){
@@ -77,7 +71,6 @@ void signalHandler_int(int p){
         printf("\n");
     }
 }
-
 
 int ntl_cd(char **args);
 int ntl_help(char **args);
@@ -126,14 +119,79 @@ int ntl_exit(char **args) {
     return 0;
 }
 
-int ntl_launch(char **args, char* inputFile, char* outputFile, int option){
+#define READ_END 0
+#define WRITE_END 1
+
+int ntl_pipe(char **args, char **pipedArgs){
+    int pipefd[2];
+
+    // Create pipe
+    if (pipe(pipefd) == -1) {
+        perror("Failed to create pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    // Fork first child
+    pid = fork();
+    if (pid == -1) {
+        perror("Failed to fork first child");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        // First child process: redirect stdout to pipe write end
+        close(pipefd[READ_END]);
+        dup2(pipefd[WRITE_END], STDOUT_FILENO);
+        close(pipefd[WRITE_END]);
+
+        // Execute first command
+        if (execvp(args[0], args) == -1) {
+            perror("Failed to execute first command");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Fork second child
+    pid = fork();
+    if (pid == -1) {
+        perror("Failed to fork second child");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        // Second child process: redirect stdin to pipe read end
+        close(pipefd[WRITE_END]);
+        dup2(pipefd[READ_END], STDIN_FILENO);
+        close(pipefd[READ_END]);
+
+        // Execute second command
+        if (execvp(pipedArgs[0], pipedArgs) == -1) {
+            perror("Failed to execute second command");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Parent process: wait for both children to finish
+    close(pipefd[READ_END]);
+    close(pipefd[WRITE_END]);
+    wait(NULL);
+    wait(NULL);
+
+    return 1;
+}
+
+int ntl_launch(char **args, char* inputFile, char* outputFile, char **pipeArgs, int option){
     int err = -1;
     int fileDescriptor;
+    int pipeFd[2];
+    pid_t pid2;
+
+    if (option == 4 && pipe(pipeFd) < 0) {
+        perror("Pipe error");
+        return -1;
+    }
 
     if((pid=fork())==-1){
         printf("Child process could not be created\n");
         return -1;
     }
+
     if(pid==0){
         if (option == 1){
             fileDescriptor = open(outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0600);
@@ -151,13 +209,12 @@ int ntl_launch(char **args, char* inputFile, char* outputFile, int option){
             close(fileDescriptor);
         }
 
-            /* Debugging */
-//        printf("Executing command: ");
-//        for (int i = 0; args[i] != NULL; i++) {
-//            printf("%s ", args[i]);
-//            printf("%d ", i);
-//        }
-//        printf("\n");
+        if (option == 4) {
+            // redirect output to pipe
+            dup2(pipeFd[1], STDOUT_FILENO);
+            close(pipeFd[0]);
+            close(pipeFd[1]);
+        }
 
         if (execvp(args[0],args)==err){
             printf("err");
@@ -166,7 +223,33 @@ int ntl_launch(char **args, char* inputFile, char* outputFile, int option){
         }
     }
 
+    if (option == 4) {
+        // execute the piped command
+        if((pid2=fork())==-1){
+            printf("Child process could not be created\n");
+            return -1;
+        }
+
+        if (pid2 == 0) {
+            // redirect input from pipe
+            dup2(pipeFd[0], STDIN_FILENO);
+            close(pipeFd[0]);
+            close(pipeFd[1]);
+
+            if (execvp(pipeArgs[0], pipeArgs) == err){
+                printf("err");
+                kill(getpid(),SIGTERM);
+                return 1;
+            }
+        }
+
+        close(pipeFd[0]);
+        close(pipeFd[1]);
+        waitpid(pid2,NULL,0);
+    }
+
     waitpid(pid,NULL,0);
+
     return 1;
 }
 
@@ -187,11 +270,11 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
 
                 if(strcmp(separators[currSeparator], ">") == 0){
                     // Option 1 for >
-                    ntl_launch(commands + start, NULL, commands[i], 1);
+                    ntl_launch(commands + start, NULL, commands[i], NULL, 1);
                 }
                 else{
                     //Option 3 for >>
-                    ntl_launch(commands + start, NULL, commands[i], 3);
+                    ntl_launch(commands + start, NULL, commands[i], NULL, 3);
                 }
                 currSeparator++;
             }
@@ -213,13 +296,22 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
                     }
 
                     // Option 2 for <
-                    ntl_launch(commands + start, commands[i], NULL, 2);
+                    ntl_launch(commands + start, commands[i], NULL, NULL, 2);
                 }
 
                 currSeparator++;
             }
+            else if(separators[currSeparator] != NULL && strcmp(separators[currSeparator], "|") == 0){
+                while (commands[i++] != NULL);
+                if(commands[i] == NULL){
+                    printf("Not enough arguments");
+                    return 1;
+                }
+
+                ntl_launch(commands + start, NULL, NULL, commands + i, 4);
+            }
             else{
-                ntl_launch(commands + start, NULL, NULL, 0);
+                ntl_launch(commands + start, NULL, NULL, NULL, 0);
             }
 
 
