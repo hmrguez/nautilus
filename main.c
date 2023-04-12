@@ -151,12 +151,13 @@ int ntl_launch(char **args, char* inputFile, char* outputFile, int option){
             close(fileDescriptor);
         }
 
-        printf("Executing command: ");
-        for (int i = 0; args[i] != NULL; i++) {
-            printf("%s ", args[i]);
-            printf("%d ", i);
-        }
-        printf("\n");
+            /* Debugging */
+//        printf("Executing command: ");
+//        for (int i = 0; args[i] != NULL; i++) {
+//            printf("%s ", args[i]);
+//            printf("%d ", i);
+//        }
+//        printf("\n");
 
         if (execvp(args[0],args)==err){
             printf("err");
@@ -169,10 +170,73 @@ int ntl_launch(char **args, char* inputFile, char* outputFile, int option){
     return 1;
 }
 
+int ntl_parsing(char **commands, char **separators, int numCommands, int numSeparators){
+    int executed = 0;
+    int currSeparator = 0;
+    int start = 0;
+
+    for (int i = 0; i < numCommands; i++) {
+        if(executed == 0){
+            start = i;
+            if(separators[currSeparator] != NULL && (strcmp(separators[currSeparator], ">") == 0 || strcmp(separators[currSeparator], ">>") == 0)){
+                while (commands[i++] != NULL);
+                if(commands[i] == NULL){
+                    printf("Not enough arguments");
+                    return 1;
+                }
+
+                if(strcmp(separators[currSeparator], ">") == 0){
+                    // Option 1 for >
+                    ntl_launch(commands + start, NULL, commands[i], 1);
+                }
+                else{
+                    //Option 3 for >>
+                    ntl_launch(commands + start, NULL, commands[i], 3);
+                }
+                currSeparator++;
+            }
+            else if(separators[currSeparator] != NULL && strcmp(separators[currSeparator], "<") == 0){
+                if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator+1], ">") == 0){
+                    printf("WIP!");
+                }
+                else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], "|") == 0){
+                    printf("WIP!");
+                }
+                else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], ">>") == 0){
+                    printf("WIP!");
+                }
+                else{
+                    while (commands[i++] != NULL);
+                    if(commands[i] == NULL){
+                        printf("Not enough arguments");
+                        return 1;
+                    }
+
+                    // Option 2 for <
+                    ntl_launch(commands + start, commands[i], NULL, 2);
+                }
+
+                currSeparator++;
+            }
+            else{
+                ntl_launch(commands + start, NULL, NULL, 0);
+            }
+
+
+            // Mark as executed
+            executed = 1;
+        }
+        else if(commands[i] == NULL){
+            //Unmark as executed
+            executed = 0;
+        }
+    }
+}
+
 int ntl_execute(char **args){
 
     char **commands = malloc(sizeof(char*) * (LIMIT + 1));
-    char *separators = malloc(sizeof(char) * (LIMIT + 1));
+    char **separators = malloc(sizeof(char*) * (LIMIT + 1));
     int numCommands = 0;
     int numSeparators = 0;
 
@@ -183,8 +247,8 @@ int ntl_execute(char **args){
     }
 
     for (int i = 0; args[i] != NULL; i++) {
-        if (strcmp(args[i], "<") == 0 || strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0) {
-            separators[numSeparators++] = args[i][0];
+        if (strcmp(args[i], "<") == 0 || strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0 || strcmp(args[i], ">>") == 0) {
+            separators[numSeparators++] = args[i];
             commands[numCommands++] = NULL; // mark end of previous command
         } else {
             commands[numCommands++] = args[i];
@@ -192,17 +256,7 @@ int ntl_execute(char **args){
     }
     commands[numCommands] = NULL; // mark end of last command
 
-    int executed = 0;
-
-    for (int i = 0; i < numCommands; i++) {
-        if(executed == 0){
-            ntl_launch(commands + i, NULL, NULL, 0);
-            executed = 1;
-        }
-        else if(commands[i] == NULL){
-            executed = 0;
-        }
-    }
+    ntl_parsing(commands, separators, numCommands, numSeparators);
 
     free(commands);
     free(separators);
