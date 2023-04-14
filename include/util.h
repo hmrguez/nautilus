@@ -15,6 +15,7 @@ struct sigaction act_child;
 struct sigaction act_int;
 
 int no_reprint_prmpt;
+int isPiping = 0;
 
 pid_t pid;
 

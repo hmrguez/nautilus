@@ -11,6 +11,7 @@
 
 #define MAXLINE 1024
 #define LIMIT 256
+#define PIPE_FILE "pipeFile"
 
 void init(){
     // See if we are running interactively
@@ -57,8 +58,8 @@ void signalHandler_child(int p){
     /* Wait for all dead processes.
      * We use a non-blocking call (WNOHANG) to be sure this signal handler will not
      * block if a child was cleaned up in another part of the program. */
-    while (waitpid(-1, NULL, WNOHANG) > 0) {
-    }
+    while (waitpid(-1, NULL, WNOHANG) > 0) { }
+
 }
 
 void signalHandler_int(int p){
@@ -180,15 +181,9 @@ int HandlePipeAndPipeOutput(int* pipeFd, char** pipeArgs, int option, char* outp
     return 1;
 }
 
-int ntl_launch(char **args, char* inputFile, char* outputFile, char **pipeArgs, int option){
+int ntl_launch(char **args, char* inputFile, char* outputFile, int option){
     int err = -1;
     int fileDescriptor;
-    int pipeFd[2];
-
-    if (option == 4 && pipe(pipeFd) < 0) {
-        perror("Pipe error");
-        return -1;
-    }
 
     if((pid=fork())==-1){
         printf("Child process could not be created\n");
@@ -196,6 +191,12 @@ int ntl_launch(char **args, char* inputFile, char* outputFile, char **pipeArgs, 
     }
 
     if(pid==0){
+        if(isPiping == 1){
+            RedirectInput(PIPE_FILE, fileDescriptor);
+            isPiping = 0;
+        }
+
+        //
         if (option == 1){
             RedirectOutput(outputFile, fileDescriptor);
         }
@@ -205,18 +206,9 @@ int ntl_launch(char **args, char* inputFile, char* outputFile, char **pipeArgs, 
         else if(option == 3){
             RedirectAppendOutput(outputFile, fileDescriptor);
         }
-        else if (option == 4) {
-            RedirectPipeOutput(pipeFd);
-        }
         else if (option == 5){
             RedirectInput(inputFile, fileDescriptor);
             RedirectOutput(outputFile, fileDescriptor);
-        }
-        else if (option == 6){
-            //TODO: doesn't work
-            RedirectInput(inputFile, fileDescriptor);
-            RedirectPipeOutput(pipeFd);
-            option = 4;
         }
         else if (option == 7){
             RedirectInput(inputFile, fileDescriptor);
@@ -230,16 +222,6 @@ int ntl_launch(char **args, char* inputFile, char* outputFile, char **pipeArgs, 
         }
     }
 
-    if (option == 4) {
-        printf("Option 4");
-        HandlePipeAndPipeOutput(pipeFd, pipeArgs, 0, NULL, fileDescriptor);
-    }
-    if (option == 8){
-        //TODO: doesn't work
-        HandlePipeAndPipeOutput(pipeFd, pipeArgs, 1, outputFile, fileDescriptor);
-    }
-
-
     waitpid(pid,NULL,0);
 
     return 1;
@@ -251,7 +233,10 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
     int start = 0;
 
     for (int i = 0; i < numCommands; i++) {
+//        printf("%s", commands[i]);
         if(executed == 0){
+
+
             start = i;
             if(separators[currSeparator] != NULL && (strcmp(separators[currSeparator], ">") == 0 || strcmp(separators[currSeparator], ">>") == 0)){
                 while (commands[i++] != NULL);
@@ -261,12 +246,10 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
                 }
 
                 if(strcmp(separators[currSeparator], ">") == 0){
-                    // Option 1 for >
-                    ntl_launch(commands + start, NULL, commands[i], NULL, 1);
+                    ntl_launch(commands + start, NULL, commands[i], 1);
                 }
                 else{
-                    //Option 3 for >>
-                    ntl_launch(commands + start, NULL, commands[i], NULL, 3);
+                    ntl_launch(commands + start, NULL, commands[i], 3);
                 }
 
                 currSeparator++;
@@ -279,23 +262,22 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
                 }
 
                 if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator+1], ">") == 0){
-                    ntl_launch(commands + start, commands[i], commands[i+2], NULL, 5);
+                    ntl_launch(commands + start, commands[i], commands[i+2], 5);
                     i+=2;
                     currSeparator++;
                 }
                 else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], "|") == 0){
-                    ntl_launch(commands + start, commands[i], NULL, commands + i + 2, 6);
-                    i+=2;
+                    ntl_launch(commands + start, commands[i], PIPE_FILE, 5);
+                    isPiping = 1;
                     currSeparator++;
                 }
                 else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], ">>") == 0){
-                    ntl_launch(commands + start, commands[i], commands[i+2], NULL, 7);
+                    ntl_launch(commands + start, commands[i], commands[i+2], 7);
                     i+=2;
                     currSeparator++;
                 }
                 else{
-                    // Option 2 for <
-                    ntl_launch(commands + start, commands[i], NULL, NULL, 2);
+                    ntl_launch(commands + start, commands[i], NULL, 2);
                 }
 
                 currSeparator++;
@@ -307,23 +289,14 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
                     return 1;
                 }
 
-                if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator+1], ">") == 0){
-                    int startPiped = i;
-                    while (commands[i++] != NULL);
-                    if(commands[i] == NULL){
-                        printf("Not enough arguments");
-                        return 1;
-                    }
+                ntl_launch(commands + start, NULL, PIPE_FILE, 1);
+                isPiping = 1;
 
-                    ntl_launch(commands + start, NULL, commands[i], commands + startPiped, 8);
-                    currSeparator++;
-                }
-                else{
-                    ntl_launch(commands + start, NULL, NULL, commands + i, 4);
-                }
+                currSeparator++;
+                i -= 2;
             }
             else{
-                ntl_launch(commands + start, NULL, NULL, NULL, 0);
+                ntl_launch(commands + start, NULL, NULL, 0);
             }
 
 
@@ -354,7 +327,11 @@ int ntl_execute(char **args){
         if (strcmp(args[i], "<") == 0 || strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0 || strcmp(args[i], ">>") == 0) {
             separators[numSeparators++] = args[i];
             commands[numCommands++] = NULL; // mark end of previous command
-        } else {
+        }
+        else if(strcmp(args[i], "#") == 0){
+            break;
+        }
+        else {
             commands[numCommands++] = args[i];
         }
     }
@@ -377,7 +354,10 @@ void ntl_loop() {
 
 
     do{
-        if(no_reprint_prmpt == 0) printf("ntl> ");
+        if(no_reprint_prmpt == 0) {
+            printf("\n");
+            printf("ntl> ");
+        }
 
         memset ( line, '\0', MAXLINE );
 
