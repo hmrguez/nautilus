@@ -12,7 +12,10 @@
 #define MAXLINE 1024
 #define LIMIT 256
 #define PIPE_FILE "pipe_file"
-#define PIPE_FILE_2 "pipe_file_2"
+#define MAX_HISTORY_SIZE 1000
+
+char history[MAX_HISTORY_SIZE][MAXLINE];
+int history_count = 0;
 
 void init() {
     // See if we are running interactively
@@ -79,16 +82,26 @@ int ntl_help(char **args);
 
 int ntl_exit(char **args);
 
+int ntl_history(char **args);
+
+int ntl_again(char **args);
+
+int ntl_execute(char **args);
+
 char *builtin_str[] = {
         "cd",
         "help",
-        "exit"
+        "exit",
+        "history",
+        "again"
 };
 
 int (*builtin_func[])(char **) = {
         &ntl_cd,
         &ntl_help,
-        &ntl_exit
+        &ntl_exit,
+        &ntl_history,
+        &ntl_again
 };
 
 int ntl_num_builtins() {
@@ -121,6 +134,58 @@ int ntl_help(char **args) {
 int ntl_exit(char **args) {
     return 0;
 }
+
+int ntl_history(char **args) {
+    for (int i = 0; i < history_count; i++) {
+        printf("%d %s\n", i, history[i]);
+    }
+
+    return 1;
+}
+
+void save_history(char* command) {
+    if (strcmp(command, "history") == 0 || strcmp(command, "") == 0) {
+        // Don't save the history command itself
+        return;
+    }
+
+    // If history is full, shift all commands to the left and discard the oldest one
+    if (history_count == MAX_HISTORY_SIZE) {
+        for (int i = 0; i < MAX_HISTORY_SIZE - 1; i++) {
+            strcpy(history[i], history[i+1]);
+        }
+        history_count--;
+    }
+
+    // Add the new command to the end of history
+    strcpy(history[history_count], command);
+    history_count++;
+}
+
+int ntl_again(char** command_parts) {
+    int index = atoi(command_parts[1]);
+    int numTokens = 0;
+
+    if (index > 0 && index <= history_count) {
+        char* command = history[index];
+        char* tokens[LIMIT];
+
+        printf("Executing command: %s\n", command);
+
+        if ((tokens[0] = strtok(command, " \n\t")) == NULL) return 1;
+        numTokens = 1;
+        while ((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) numTokens++;
+
+        int status = ntl_execute(tokens);
+        save_history(command);
+    } else {
+        printf("Invalid command index\n");
+    }
+
+    return 1;
+}
+
+/* ============================================================================================ */
 
 void RedirectOutput(char *outputFile, int fileDescriptor) {
     fileDescriptor = open(outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0600);
@@ -310,7 +375,7 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
                 // Execute the last command in the pipe chain
 
                 if(separators[currSeparator] != NULL &&
-                    (strcmp(separators[currSeparator], ">") == 0 || strcmp(separators[currSeparator], ">>"))){
+                    (strcmp(separators[currSeparator], ">") == 0 || strcmp(separators[currSeparator], ">>") == 0)){
 
                     while (commands[i++] != NULL);
                     i-=2;
@@ -321,9 +386,9 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
                     }
 
                     if (strcmp(separators[currSeparator], ">") == 0) {
-                        ntl_launch(commands + start, buffer_files[buffer ^ 1], commands[i], 5);
+                        ntl_launch(commands + start, buffer_files[buffer ^ 1], commands[i++], 5);
                     } else {
-                        ntl_launch(commands + start, buffer_files[buffer ^ 1], commands[i], 7);
+                        ntl_launch(commands + start, buffer_files[buffer ^ 1], commands[i++], 7);
                     }
 
                     currSeparator++;
@@ -395,15 +460,18 @@ void ntl_loop() {
 
 
     do {
-        if (no_reprint_prmpt == 0) {
-            printf("\n");
-            printf("ntl> ");
-        }
-
+//        if (no_reprint_prmpt == 0) {
+//            printf("\n");
+//            printf("ntl> ");
+//        }
+        printf("nautilus $ ");
         memset(line, '\0', MAXLINE);
 
         fgets(line, MAXLINE, stdin);
+        line[strcspn(line, "\n")] = 0;
+        save_history(line);
         if ((tokens[0] = strtok(line, " \n\t")) == NULL) continue;
+
 
         numTokens = 1;
         while ((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) numTokens++;
@@ -417,32 +485,3 @@ int main() {
     ntl_loop();
     return EXIT_SUCCESS;
 }
-
-//else if(separators[currSeparator] != NULL && strcmp(separators[currSeparator], "<") == 0){
-//while (commands[i++] != NULL);
-//if(commands[i] == NULL){
-//printf("Not enough arguments");
-//return 1;
-//}
-//
-//if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator+1], ">") == 0){
-//ntl_launch(commands + start, commands[i], commands[i+2], 5);
-//i+=2;
-//currSeparator++;
-//}
-//else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], "|") == 0){
-//ntl_launch(commands + start, commands[i], PIPE_FILE, 5);
-//isPiping = 1;
-//currSeparator++;
-//}
-//else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], ">>") == 0){
-//ntl_launch(commands + start, commands[i], commands[i+2], 7);
-//i+=2;
-//currSeparator++;
-//}
-//else{
-//ntl_launch(commands + start, commands[i], NULL, 2);
-//}
-//
-//currSeparator++;
-//}
