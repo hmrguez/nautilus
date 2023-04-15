@@ -11,9 +11,10 @@
 
 #define MAXLINE 1024
 #define LIMIT 256
-#define PIPE_FILE "pipeFile"
+#define PIPE_FILE "pipe_file"
+#define PIPE_FILE_2 "pipe_file_2"
 
-void init(){
+void init() {
     // See if we are running interactively
     NTL_PID = getpid();
     // The shell is interactive if STDIN is the terminal
@@ -47,33 +48,35 @@ void init(){
         tcgetattr(STDIN_FILENO, &NTL_TMODES);
 
         // Get the current directory that will be used in different methods
-        currentDirectory = (char*) calloc(1024, sizeof(char));
+        currentDirectory = (char *) calloc(1024, sizeof(char));
     } else {
         printf("Could not make the shell interactive.\n");
         exit(EXIT_FAILURE);
     }
 }
 
-void signalHandler_child(int p){
+void signalHandler_child(int p) {
     /* Wait for all dead processes.
      * We use a non-blocking call (WNOHANG) to be sure this signal handler will not
      * block if a child was cleaned up in another part of the program. */
-    while (waitpid(-1, NULL, WNOHANG) > 0) { }
+    while (waitpid(-1, NULL, WNOHANG) > 0) {}
 
 }
 
-void signalHandler_int(int p){
+void signalHandler_int(int p) {
     // We send a SIGTERM signal to the child process
-    if (kill(pid,SIGTERM) == 0){
-        printf("\nProcess %d received a SIGINT signal\n",pid);
+    if (kill(pid, SIGTERM) == 0) {
+        printf("\nProcess %d received a SIGINT signal\n", pid);
         no_reprint_prmpt = 1;
-    }else{
+    } else {
         printf("\n");
     }
 }
 
 int ntl_cd(char **args);
+
 int ntl_help(char **args);
+
 int ntl_exit(char **args);
 
 char *builtin_str[] = {
@@ -82,7 +85,7 @@ char *builtin_str[] = {
         "exit"
 };
 
-int (*builtin_func[]) (char **) = {
+int (*builtin_func[])(char **) = {
         &ntl_cd,
         &ntl_help,
         &ntl_exit
@@ -92,11 +95,11 @@ int ntl_num_builtins() {
     return sizeof(builtin_str) / sizeof(char *);
 }
 
-int ntl_cd(char **args){
-    if(args[1] == NULL){
+int ntl_cd(char **args) {
+    if (args[1] == NULL) {
         fprintf(stderr, "ntl: expected argument to \"cd\"\n");
     } else {
-        if(chdir(args[1]) != 0){
+        if (chdir(args[1]) != 0) {
             perror("ntl");
         }
     }
@@ -119,37 +122,37 @@ int ntl_exit(char **args) {
     return 0;
 }
 
-void RedirectOutput(char* outputFile, int fileDescriptor){
+void RedirectOutput(char *outputFile, int fileDescriptor) {
     fileDescriptor = open(outputFile, O_CREAT | O_TRUNC | O_WRONLY, 0600);
     dup2(fileDescriptor, STDOUT_FILENO);
     close(fileDescriptor);
 }
 
-void RedirectInput(char* inputFile, int fileDescriptor){
+void RedirectInput(char *inputFile, int fileDescriptor) {
     fileDescriptor = open(inputFile, O_RDONLY, 0600);
     dup2(fileDescriptor, STDIN_FILENO);
     close(fileDescriptor);
 }
 
-void RedirectAppendOutput(char* outputFile, int fileDescriptor){
+void RedirectAppendOutput(char *outputFile, int fileDescriptor) {
     fileDescriptor = open(outputFile, O_CREAT | O_APPEND | O_WRONLY, 0600);
     dup2(fileDescriptor, STDOUT_FILENO);
     close(fileDescriptor);
 }
 
-void RedirectPipeOutput(int* pipeFd){
+void RedirectPipeOutput(int *pipeFd) {
     dup2(pipeFd[1], STDOUT_FILENO);
     close(pipeFd[0]);
     close(pipeFd[1]);
     no_reprint_prmpt = 1;
 }
 
-int HandlePipeAndPipeOutput(int* pipeFd, char** pipeArgs, int option, char* outputFile, int fileDescriptor){
+int HandlePipeAndPipeOutput(int *pipeFd, char **pipeArgs, int option, char *outputFile, int fileDescriptor) {
     int err = -1;
     pid_t pid2;
 
     // execute the piped command
-    if((pid2=fork())==-1){
+    if ((pid2 = fork()) == -1) {
         printf("Child process could not be created\n");
         return -1;
     }
@@ -160,14 +163,14 @@ int HandlePipeAndPipeOutput(int* pipeFd, char** pipeArgs, int option, char* outp
         close(pipeFd[0]);
         close(pipeFd[1]);
 
-        if(option == 1) {
+        if (option == 1) {
             RedirectOutput(outputFile, fileDescriptor);
 //            printf("Got to option 1");
         }
 
-        if (execvp(pipeArgs[0], pipeArgs) == -1){
+        if (execvp(pipeArgs[0], pipeArgs) == -1) {
             printf("err");
-            kill(getpid(),SIGTERM);
+            kill(getpid(), SIGTERM);
             return -1;
         }
     }
@@ -176,144 +179,183 @@ int HandlePipeAndPipeOutput(int* pipeFd, char** pipeArgs, int option, char* outp
 
     close(pipeFd[0]);
     close(pipeFd[1]);
-    waitpid(pid2,NULL,0);
+    waitpid(pid2, NULL, 0);
 
     return 1;
 }
 
-int ntl_launch(char **args, char* inputFile, char* outputFile, int option){
+int ntl_launch(char **args, char *inputFile, char *outputFile, int option) {
     int err = -1;
     int fileDescriptor;
 
-    if((pid=fork())==-1){
+    if ((pid = fork()) == -1) {
         printf("Child process could not be created\n");
         return -1;
     }
 
-    if(pid==0){
-        if(isPiping == 1){
+    if (pid == 0) {
+        if (isPiping == 1) {
             RedirectInput(PIPE_FILE, fileDescriptor);
             isPiping = 0;
         }
 
         //
-        if (option == 1){
+        if (option == 1) {
             RedirectOutput(outputFile, fileDescriptor);
-        }
-        else if (option == 2){
+        } else if (option == 2) {
             RedirectInput(inputFile, fileDescriptor);
-        }
-        else if(option == 3){
+        } else if (option == 3) {
             RedirectAppendOutput(outputFile, fileDescriptor);
-        }
-        else if (option == 5){
+        } else if (option == 5) {
             RedirectInput(inputFile, fileDescriptor);
             RedirectOutput(outputFile, fileDescriptor);
-        }
-        else if (option == 7){
+        } else if (option == 7) {
             RedirectInput(inputFile, fileDescriptor);
             RedirectAppendOutput(outputFile, fileDescriptor);
         }
 
-        if (execvp(args[0],args)==err){
+        if (execvp(args[0], args) == err) {
             printf("err");
-            kill(getpid(),SIGTERM);
+            kill(getpid(), SIGTERM);
             return -1;
         }
     }
 
-    waitpid(pid,NULL,0);
+    waitpid(pid, NULL, 0);
 
     return 1;
 }
 
-int ntl_parsing(char **commands, char **separators, int numCommands, int numSeparators){
+int ntl_parsing(char **commands, char **separators, int numCommands, int numSeparators) {
     int executed = 0;
     int currSeparator = 0;
     int start = 0;
+    int buffer = 0;
+    char *buffer_files[] = {"buffer_file1", "buffer_file2"};
 
     for (int i = 0; i < numCommands; i++) {
-//        printf("%s", commands[i]);
-        if(executed == 0){
-
-
+        if (executed == 0) {
             start = i;
-            if(separators[currSeparator] != NULL && (strcmp(separators[currSeparator], ">") == 0 || strcmp(separators[currSeparator], ">>") == 0)){
+            if (separators[currSeparator] != NULL &&
+                (strcmp(separators[currSeparator], ">") == 0 || strcmp(separators[currSeparator], ">>") == 0)) {
                 while (commands[i++] != NULL);
-                if(commands[i] == NULL){
+                if (commands[i] == NULL) {
                     printf("Not enough arguments");
                     return 1;
                 }
 
-                if(strcmp(separators[currSeparator], ">") == 0){
+                if (strcmp(separators[currSeparator], ">") == 0) {
                     ntl_launch(commands + start, NULL, commands[i], 1);
-                }
-                else{
+                } else {
                     ntl_launch(commands + start, NULL, commands[i], 3);
                 }
 
                 currSeparator++;
-            }
-            else if(separators[currSeparator] != NULL && strcmp(separators[currSeparator], "<") == 0){
+            } else if (separators[currSeparator] != NULL && strcmp(separators[currSeparator], "<") == 0) {
                 while (commands[i++] != NULL);
-                if(commands[i] == NULL){
+                if (commands[i] == NULL) {
                     printf("Not enough arguments");
                     return 1;
                 }
 
-                if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator+1], ">") == 0){
-                    ntl_launch(commands + start, commands[i], commands[i+2], 5);
-                    i+=2;
+                if (separators[currSeparator + 1] != NULL && strcmp(separators[currSeparator + 1], ">") == 0) {
+                    ntl_launch(commands + start, commands[i], commands[i + 2], 5);
+                    i += 2;
                     currSeparator++;
-                }
-                else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], "|") == 0){
+                } else if (separators[currSeparator + 1] != NULL && strcmp(separators[currSeparator + 1], "|") == 0) {
                     ntl_launch(commands + start, commands[i], PIPE_FILE, 5);
                     isPiping = 1;
                     currSeparator++;
-                }
-                else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], ">>") == 0){
-                    ntl_launch(commands + start, commands[i], commands[i+2], 7);
-                    i+=2;
+                } else if (separators[currSeparator + 1] != NULL && strcmp(separators[currSeparator + 1], ">>") == 0) {
+                    ntl_launch(commands + start, commands[i], commands[i + 2], 7);
+                    i += 2;
                     currSeparator++;
-                }
-                else{
+                } else {
                     ntl_launch(commands + start, commands[i], NULL, 2);
                 }
 
                 currSeparator++;
-            }
-            else if(separators[currSeparator] != NULL && strcmp(separators[currSeparator], "|") == 0){
+            } else if (separators[currSeparator] != NULL && strcmp(separators[currSeparator], "|") == 0) {
                 while (commands[i++] != NULL);
-                if(commands[i] == NULL){
+                if (commands[i] == NULL) {
                     printf("Not enough arguments");
                     return 1;
                 }
 
-                ntl_launch(commands + start, NULL, PIPE_FILE, 1);
-                isPiping = 1;
+                do {
+                    if(currSeparator > 0 && strcmp(separators[currSeparator - 1], "|") == 0){
+                        ntl_launch(commands + start, buffer_files[buffer ^ 1], buffer_files[buffer], 5);
+                    }
+                    else{
+                        ntl_launch(commands + start, NULL, buffer_files[buffer], 1);
+                    }
+//                    ntl_launch(commands + start,
+//                               (currSeparator > 0 && strcmp(separators[currSeparator - 1], "|") == 0) ? buffer_files[
+//                                       buffer ^ 1] : NULL,
+//                               buffer_files[buffer], 1);
+
+                    // Advance to the next command
+                    start = i++;
+                    while (commands[i++] != NULL);
+
+                    // Swap the buffer index
+                    buffer ^= 1;
+                    currSeparator++;
+
+
+                } while (separators[currSeparator] != NULL && strcmp(separators[currSeparator], "|") == 0);
+
+//                printf("%s", separators[currSeparator]);
+
+                // Execute the last command in the pipe chain
+
+                if(separators[currSeparator] != NULL &&
+                    (strcmp(separators[currSeparator], ">") == 0 || strcmp(separators[currSeparator], ">>"))){
+
+                    while (commands[i++] != NULL);
+                    i-=2;
+
+                    if (commands[i] == NULL) {
+                        printf("Not enough arguments");
+                        return 1;
+                    }
+
+                    if (strcmp(separators[currSeparator], ">") == 0) {
+                        ntl_launch(commands + start, buffer_files[buffer ^ 1], commands[i], 5);
+                    } else {
+                        ntl_launch(commands + start, buffer_files[buffer ^ 1], commands[i], 7);
+                    }
+
+                    currSeparator++;
+                }
+                else{
+                    ntl_launch(commands + start, buffer_files[buffer ^ 1], NULL, 2);
+                }
 
                 currSeparator++;
                 i -= 2;
-            }
-            else{
+            } else {
                 ntl_launch(commands + start, NULL, NULL, 0);
             }
 
-
             // Mark as executed
             executed = 1;
-        }
-        else if(commands[i] == NULL){
-            //Unmark as executed
+        } else if (commands[i] == NULL) {
+            // Unmark as executed
             executed = 0;
         }
     }
+
+    // Remove the buffer files after the execution
+    remove(buffer_files[0]);
+    remove(buffer_files[1]);
+    remove(PIPE_FILE);
 }
 
-int ntl_execute(char **args){
+int ntl_execute(char **args) {
 
-    char **commands = malloc(sizeof(char*) * (LIMIT + 1));
-    char **separators = malloc(sizeof(char*) * (LIMIT + 1));
+    char **commands = malloc(sizeof(char *) * (LIMIT + 1));
+    char **separators = malloc(sizeof(char *) * (LIMIT + 1));
     int numCommands = 0;
     int numSeparators = 0;
 
@@ -324,14 +366,13 @@ int ntl_execute(char **args){
     }
 
     for (int i = 0; args[i] != NULL; i++) {
-        if (strcmp(args[i], "<") == 0 || strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0 || strcmp(args[i], ">>") == 0) {
+        if (strcmp(args[i], "<") == 0 || strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0 ||
+            strcmp(args[i], ">>") == 0) {
             separators[numSeparators++] = args[i];
             commands[numCommands++] = NULL; // mark end of previous command
-        }
-        else if(strcmp(args[i], "#") == 0){
+        } else if (strcmp(args[i], "#") == 0) {
             break;
-        }
-        else {
+        } else {
             commands[numCommands++] = args[i];
         }
     }
@@ -346,30 +387,30 @@ int ntl_execute(char **args){
 
 void ntl_loop() {
     char line[MAXLINE];
-    char * tokens[LIMIT];
+    char *tokens[LIMIT];
     int numTokens;
     int status = 1;
     pid = -10;
     init();
 
 
-    do{
-        if(no_reprint_prmpt == 0) {
+    do {
+        if (no_reprint_prmpt == 0) {
             printf("\n");
             printf("ntl> ");
         }
 
-        memset ( line, '\0', MAXLINE );
+        memset(line, '\0', MAXLINE);
 
         fgets(line, MAXLINE, stdin);
-        if((tokens[0] = strtok(line," \n\t")) == NULL) continue;
+        if ((tokens[0] = strtok(line, " \n\t")) == NULL) continue;
 
         numTokens = 1;
-        while((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) numTokens++;
+        while ((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) numTokens++;
 
         status = ntl_execute(tokens);
 
-    } while(status);
+    } while (status);
 }
 
 int main() {
@@ -377,3 +418,31 @@ int main() {
     return EXIT_SUCCESS;
 }
 
+//else if(separators[currSeparator] != NULL && strcmp(separators[currSeparator], "<") == 0){
+//while (commands[i++] != NULL);
+//if(commands[i] == NULL){
+//printf("Not enough arguments");
+//return 1;
+//}
+//
+//if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator+1], ">") == 0){
+//ntl_launch(commands + start, commands[i], commands[i+2], 5);
+//i+=2;
+//currSeparator++;
+//}
+//else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], "|") == 0){
+//ntl_launch(commands + start, commands[i], PIPE_FILE, 5);
+//isPiping = 1;
+//currSeparator++;
+//}
+//else if(separators[currSeparator+1] != NULL && strcmp(separators[currSeparator + 1], ">>") == 0){
+//ntl_launch(commands + start, commands[i], commands[i+2], 7);
+//i+=2;
+//currSeparator++;
+//}
+//else{
+//ntl_launch(commands + start, commands[i], NULL, 2);
+//}
+//
+//currSeparator++;
+//}
