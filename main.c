@@ -12,7 +12,7 @@
 #define MAXLINE 1024
 #define LIMIT 256
 #define PIPE_FILE "pipe_file"
-#define MAX_HISTORY_SIZE 1000
+#define MAX_HISTORY_SIZE 10
 
 char history[MAX_HISTORY_SIZE][MAXLINE];
 int history_count = 0;
@@ -166,7 +166,7 @@ int ntl_again(char** command_parts) {
     int index = atoi(command_parts[1]);
     int numTokens = 0;
 
-    if (index > 0 && index <= history_count) {
+    if (index >= 0 && index <= history_count) {
         char* command = history[index];
         char* tokens[LIMIT];
 
