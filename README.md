@@ -19,3 +19,6 @@ For detailed information about each command, type help at the prompt.
 
 ## Contribution
 If you would like to contribute to Nautilus, please submit a pull request with your changes. We welcome contributions from anyone, regardless of their level of experience with C or Unix shells.
+
+## License
+The project currently doesn't have a license so feel free to use it as you like !!
