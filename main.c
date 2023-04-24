@@ -135,49 +135,138 @@ int ntl_exit(char **args) {
     return 0;
 }
 
+#define HISTORY_FILE "history"
+
 int ntl_history(char **args) {
-    for (int i = 0; i < history_count; i++) {
-        printf("%d %s\n", i, history[i]);
+    FILE* file = fopen(HISTORY_FILE, "r");
+    if (file == NULL) {
+        printf("Error: could not open history file for reading.\n");
+        return 0;
     }
+
+    char* line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    int index = 0;
+
+    while ((read = getline(&line, &len, file)) != -1) {
+        // Remove newline character at the end of the line.
+        line[strcspn(line, "\n")] = '\0';
+
+        printf("%d: %s\n", index, line);
+        index++;
+    }
+
+    if (line) {
+        free(line);
+    }
+
+    fclose(file);
 
     return 1;
 }
 
-void save_history(char* command) {
-    if (strcmp(command, "history") == 0 || strcmp(command, "") == 0) {
-        // Don't save the history command itself
+#define MAX_HISTORY_LINES 10
+
+void append_to_history(char** tokens, int num_tokens) {
+    if(strcmp(tokens[0], "again") == 0) return;
+
+    // Read the current history from the file into a buffer.
+    char history_buffer[MAX_HISTORY_LINES][BUFSIZ];
+    int history_count = 0;
+    FILE* file = fopen(HISTORY_FILE, "r");
+    if (file != NULL) {
+        char line[BUFSIZ];
+        while (fgets(line, sizeof(line), file) != NULL) {
+            if (history_count < MAX_HISTORY_LINES) {
+                strcpy(history_buffer[history_count], line);
+                history_count++;
+            }
+        }
+        fclose(file);
+    }
+
+    // Convert tokens to text and add the new line to the history buffer.
+    char text[BUFSIZ] = "";
+    for (int i = 0; i < num_tokens; i++) {
+        strcat(text, tokens[i]);
+        strcat(text, " ");
+    }
+    if (history_count < MAX_HISTORY_LINES) {
+        sprintf(history_buffer[history_count], "%s\n", text);
+        history_count++;
+    } else {
+        // If the history buffer is full, remove the first line.
+        for (int i = 1; i < history_count; i++) {
+            strcpy(history_buffer[i-1], history_buffer[i]);
+        }
+        sprintf(history_buffer[history_count-1], "%s\n", text);
+    }
+
+    // Write the history buffer back to the file.
+    file = fopen(HISTORY_FILE, "w");
+    if (file == NULL) {
+        printf("Error: could not open file for writing.\n");
         return;
     }
+    for (int i = 0; i < history_count; i++) {
+        fprintf(file, "%s", history_buffer[i]);
+    }
+    fclose(file);
+}
 
-    // If history is full, shift all commands to the left and discard the oldest one
-    if (history_count == MAX_HISTORY_SIZE) {
-        for (int i = 0; i < MAX_HISTORY_SIZE - 1; i++) {
-            strcpy(history[i], history[i+1]);
-        }
-        history_count--;
+char* read_command_from_history(int index) {
+    FILE* file = fopen(HISTORY_FILE, "r");
+    if (file == NULL) {
+        printf("Error: could not open history file for reading.\n");
+        return NULL;
     }
 
-    // Add the new command to the end of history
-    strcpy(history[history_count], command);
-    history_count++;
+    char* line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    for (int i = 0; i <= index; i++) {
+        read = getline(&line, &len, file);
+        if (read == -1) {
+            printf("Error: history file does not have enough commands.\n");
+            fclose(file);
+            return NULL;
+        }
+    }
+
+    // Remove newline character at the end of the line.
+    line[strcspn(line, "\n")] = '\0';
+
+    fclose(file);
+    return line;
 }
 
 int ntl_again(char** command_parts) {
     int index = atoi(command_parts[1]);
     int numTokens = 0;
 
-    if (index >= 0 && index <= history_count) {
-        char* command = history[index];
+    if (index >= 0 && index <= MAX_HISTORY_LINES) {
+        char* command = read_command_from_history(index);
+        if (command == NULL) return 1;
+
         char* tokens[LIMIT];
 
         printf("Executing command: %s\n", command);
 
-        if ((tokens[0] = strtok(command, " \n\t")) == NULL) return 1;
+        if ((tokens[0] = strtok(command, " \n\t")) == NULL) {
+            free(command);
+            return 1;
+        }
+
         numTokens = 1;
-        while ((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) numTokens++;
+        while ((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) {
+            numTokens++;
+        }
 
         int status = ntl_execute(tokens);
-        save_history(command);
+        append_to_history(tokens, numTokens);
+        free(command);
     } else {
         printf("Invalid command index\n");
     }
@@ -460,22 +549,18 @@ void ntl_loop() {
 
 
     do {
-//        if (no_reprint_prmpt == 0) {
-//            printf("\n");
-//            printf("ntl> ");
-//        }
         printf("nautilus $ ");
         memset(line, '\0', MAXLINE);
 
         fgets(line, MAXLINE, stdin);
         line[strcspn(line, "\n")] = 0;
-        save_history(line);
         if ((tokens[0] = strtok(line, " \n\t")) == NULL) continue;
 
 
         numTokens = 1;
         while ((tokens[numTokens] = strtok(NULL, " \n\t")) != NULL) numTokens++;
 
+        append_to_history(tokens, numTokens);
         status = ntl_execute(tokens);
 
     } while (status);
