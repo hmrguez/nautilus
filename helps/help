@@ -16,7 +16,7 @@ Comandos built-in:
     help: muestra esta ayuda 
     history: muestra el historial de comandos
     again: executa el comando indexado
-    Total: 5.5 puntos
+    Total: 6.5 puntos
 
 ** Para leer los help es importante entender que (LX) significa en la linea X del archivo main.c
 
