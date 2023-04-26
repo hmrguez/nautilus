@@ -1,0 +1,13 @@
+Multipiping
+
+Para empezar, aclarar que no se usa la funcion pipe() para implementar la tuberia. Lo que se usan son archivos de buffer que sirven tanto para enviar la salida de un comando y recibir la entrada del otro.
+
+Aclarar q esto funciona bien como un piping normal. En terminos sencillos. Cuando se hace command1 | command2 como en realidad lo esta interpretando es como command1 > buffer_file1 ; command2 < buffer_file1. Al final siempre se elimina el archivo de buffer.
+
+Esto hace la implementacion comoda ya que a la hora de ejecutar el comando simplemente estoy haciendo las mimsmas funciones ya implementadas para los operadores > y <. Es similar a la implementacion normal de la funcion pipe(), con la diferencia de que el file descriptor es un archivo real dentro de la carpeta (efimero).
+
+Para implementar el piping se empieza en (L442). Cuando se detecta que el siguiente operador es una tuberia entonces entra en un "modo tuberia" en el cual pueden pasar 3 cosas: es un comando al principio, es un comando en el medio o es el ultimo comando. 
+1. El comando del principio simplemente se le manda a ntl_launch (L334) con opcion 1 de escribir en el buffer file que toca.
+2. El comando del final es con opcion 2 de leer el buffer file que toca.
+3. Si esta en el medio ya es mas turbio. Como mismo pasa en la funcion pipe(), si intentamos leer y escribir del mismo archivo nos da error. Asi que tengo 2 buffer file. Estos se intercalan de forma que si 1 esta leyendo en este momento entonces 2 esta escribiendo. Cada vez que itero de nuevo estos se deben intercalar ya que si en el anterior escribi en 1, lo que quiero leer esta alli.
+

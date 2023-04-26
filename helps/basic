@@ -1,0 +1,17 @@
+Basic
+
+La lectura del comando se hace en el metodo ntl_loop. El cual imprime el prompt de la shell mientras q el comando que entremos sea vacio o cuando termine un commando. Luego se pasa al metodo ntl_execute (L513), el cual su funcion es manejar algun que otro caso extremo y por encima de todo separar la linea que se leyo en comandos y separadores. Todo eso para que el metodo ntl_parsing (L391) vaya por cada uno de los comandos y separadores y dependencia de cuales separadores rodean a un comando los ejecuta.
+
+Se puede ejecutar cualquier comando que se le pase usando la funcion execvp(...)
+Esto se puede ver con la funcion ntl_launch (L334). Lo que hace es crear un fork del commando principal, el shell y pasarselo a la funcion execvp. Si esta devuelve un error entonces ese mismo error se devuelve para atras
+
+El resto de argumentos de la funcion ntl_launch son usados en el piping y en la redireccion de entrada y salida del comando.
+En cuanto a opciones se pueden recibir 6 opciones:
+0. El comando es raso (salida y entrada normal)
+1. La salida debe ser a un archivo (operador >)
+2. La entrada debe ser de un archivo (operador <)
+3. La salida se le debe acoplar al final del archivo (operador >>)
+5. La entrada y salida son de archivos (imaginese que sea command1 < file1 > file2)
+7. Lo mismo que la 5 pero con un append (command1 < file1 >> file2)
+
+El piping se explica en help multi-pipe

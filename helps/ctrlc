@@ -1,0 +1,12 @@
+
+Ctrl+C
+
+Nuestro shell permite que cuando un comando se esté ejecutando se le pueda enviar un Ctrl+C.
+
+Para implementar eso, tuvimos que primero crear un manejador de señarles (sig_handler) que captura cualquier señal SIGINT que venga. Luego la manda al padre del proceso (el shell) y le dice que le de una advertencia al hijo mandandole la misma señal SIGINT. Si este decide ignorarla por cualquier razon se queda guardada como variable que ya se mando un sigint. Si se vuelve a mandar otro sigint, entonces se manda a matar completo usando un SIGTERM
+
+El sighandler se asigna en el metodo que ademas hace otras funciones como asegurarse que esta corriendo en el foreground o poner al proceso del shell como el padre de todos los procesos. Es el metodo en (L20).
+
+En concreto el sighandler se asigna en (L34) y (L38) y el metodo del sighandler esta en (L70).
+
+El programa tiene un pequeño bug que es que cuando se manda un SIGINT, si este mata al proceso entonces cuando sale el prompt de nuevo sale doble pero es algo minimo lo que escurridizo. Tambien parece que esta asociado a lo mismo es que los metodos builtin se mandan a matar ponen un prompt por cada uno q haya abierto.

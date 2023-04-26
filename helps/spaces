@@ -1,0 +1,8 @@
+
+Spaces
+
+Se implemento el hecho de que los comandos puederan trar cualquier cantidad de spacios de separacion entre ellos. 
+
+Como ya la implementacion base usaba strtok para tokenizar los argumentos separandolos por espacios entonces el verdadero desafio era cuando no hubiera espacio entre los argumentos.
+
+Esto se consiguio en (L565) usando la funcion add_spaces que en resumen lo que hace es leer el string y cuando encuentra un <, >, >> o | simplemente añade espacios alrededor. Y lo hace en cualquier momento, ya que si antes ya habia espacios lo que va a hacer es venir strtok y quitarlos de nuevo.

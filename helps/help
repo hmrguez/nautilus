@@ -1,0 +1,22 @@
+Integrantes: 
+    Hector Miguel Rodriguez Sosa C311
+    Sebastian Suarez Gomez C311
+
+Funcionalidades:
+    basic: funcionalidades básicas (3 puntos)
+    multi-pipe: multiples tuberías (1 punto)
+    help: ayuda (1 punto)
+    ctrl+c: captuar y enviar señales a procesos (0.5 puntos)
+    history: se ven los 10 ultimos comandos y usa el again {index} para ir a uno (0.5 puntos)
+    spaces: se acepta cualquier cantidad de espacios entre comandos (0.5 puntos)
+
+Comandos built-in:
+    cd: cambia de directorios
+    exit: termina el shell
+    help: muestra esta ayuda 
+    history: muestra el historial de comandos
+    again: executa el comando indexado
+    Total: 5.5 puntos
+
+** Para leer los help es importante entender que (LX) significa en la linea X del archivo main.c
+

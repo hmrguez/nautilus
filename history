@@ -1,10 +1,10 @@
+ls 
+ls 
+cat < file 
+cat < file | grep s | sort > p 
 exit 
-cat < file | grep s | sort > temp4 
+ls 
+cat < temp | grep s | sort > g 
+cat < file | grep s | sort > h 
 exit 
-exit 
-> temp5 
-cat < file | grep s | sort > temp6 
-ls > file2 > ddd 
-exit 
-clear 
-exit 
+cat < file >> h 

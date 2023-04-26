@@ -38,7 +38,8 @@ void init() {
         sigaction(SIGINT, &act_int, 0);
 
         // Put ourselves in our own process group
-        setpgid(NTL_PID, NTL_PID); // we make the shell process the new process group leader
+        setpgid(NTL_PID, NTL_PID); 
+        // we make the shell process the new process group leader
         NTL_PGID = getpgrp();
         if (NTL_PID != NTL_PGID) {
             printf("Error, the shell is not process group leader");
@@ -67,10 +68,25 @@ void signalHandler_child(int p) {
 }
 
 void signalHandler_int(int p) {
-    // We send a SIGTERM signal to the child process
-    if (kill(pid, SIGTERM) == 0) {
-        printf("\nProcess %d received a SIGINT signal\n", pid);
-        no_reprint_prmpt = 1;
+    if (pid > 0) {
+        if (kill(pid, SIGINT) == 0) {
+            printf("\nProcess %d received a SIGINT signal\n", pid);
+            if (!sent_sigint) {
+                // First SIGINT, set flag and return
+                sent_sigint = 1;
+                return;
+            } else {
+                // Second SIGINT, send SIGKILL and reset flag
+                sent_sigint = 0;
+                if (kill(pid, SIGKILL) == 0) {
+                    printf("Process %d received a SIGKILL signal\n", pid);
+                } else {
+                    printf("Failed to send SIGKILL to process %d\n", pid);
+                }
+            }
+        } else {
+            printf("\nFailed to send SIGINT to process %d\n", pid);
+        }
     } else {
         printf("\n");
     }
@@ -108,7 +124,31 @@ int ntl_num_builtins() {
     return sizeof(builtin_str) / sizeof(char *);
 }
 
+void read_file(char* filename) {
+    FILE* fp;
+    char* line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    // Open file for reading
+    fp = fopen(filename, "r");
+    if (fp == NULL) {
+        printf("Error: Could not open file\n");
+        exit(1);
+    }
+
+    // Read and print each line of the file
+    while ((read = getline(&line, &len, fp)) != -1) {
+        printf("%s", line);
+    }
+
+    // Free memory and close file
+    free(line);
+    fclose(fp);
+}
+
 int ntl_cd(char **args) {
+    printf("L");
     if (args[1] == NULL) {
         fprintf(stderr, "ntl: expected argument to \"cd\"\n");
     } else {
@@ -121,13 +161,27 @@ int ntl_cd(char **args) {
 
 int ntl_help(char **args) {
     int i;
-    printf("Ntl shell");
-
-    for (int j = 0; j < ntl_num_builtins(); ++j) {
-        printf(" %s", builtin_str[j]);
+    if(args[1] == NULL){
+        read_file("helps/help");
     }
-
-    printf("If you need any help please help me too");
+    else if(strcmp(args[1], "basic") == 0){
+        read_file("helps/basic");
+    }
+    else if(strcmp(args[1], "multi-pipe") == 0){
+        read_file("helps/multipipe");
+    }
+    else if(strcmp(args[1], "ctrl+c") == 0){
+        read_file("helps/ctrlc");
+    }
+    else if(strcmp(args[1], "history") == 0){
+        read_file("helps/history");
+    }
+    else if(strcmp(args[1], "spaces") == 0){
+        read_file("helps/spaces");
+    }
+    else{
+        printf("Bug found");
+    }
     return 1;
 }
 
@@ -135,7 +189,10 @@ int ntl_exit(char **args) {
     return 0;
 }
 
+/* ======================================================================================= */
+
 #define HISTORY_FILE "history"
+#define MAX_HISTORY_LINES 10
 
 int ntl_history(char **args) {
     FILE* file = fopen(HISTORY_FILE, "r");
@@ -165,8 +222,6 @@ int ntl_history(char **args) {
 
     return 1;
 }
-
-#define MAX_HISTORY_LINES 10
 
 void append_to_history(char** tokens, int num_tokens) {
     if(strcmp(tokens[0], "again") == 0) return;
@@ -294,49 +349,7 @@ void RedirectAppendOutput(char *outputFile, int fileDescriptor) {
     close(fileDescriptor);
 }
 
-void RedirectPipeOutput(int *pipeFd) {
-    dup2(pipeFd[1], STDOUT_FILENO);
-    close(pipeFd[0]);
-    close(pipeFd[1]);
-    no_reprint_prmpt = 1;
-}
-
-int HandlePipeAndPipeOutput(int *pipeFd, char **pipeArgs, int option, char *outputFile, int fileDescriptor) {
-    int err = -1;
-    pid_t pid2;
-
-    // execute the piped command
-    if ((pid2 = fork()) == -1) {
-        printf("Child process could not be created\n");
-        return -1;
-    }
-
-    if (pid2 == 0) {
-        // redirect input from pipe
-        dup2(pipeFd[0], STDIN_FILENO);
-        close(pipeFd[0]);
-        close(pipeFd[1]);
-
-        if (option == 1) {
-            RedirectOutput(outputFile, fileDescriptor);
-//            printf("Got to option 1");
-        }
-
-        if (execvp(pipeArgs[0], pipeArgs) == -1) {
-            printf("err");
-            kill(getpid(), SIGTERM);
-            return -1;
-        }
-    }
-
-    no_reprint_prmpt = 0;
-
-    close(pipeFd[0]);
-    close(pipeFd[1]);
-    waitpid(pid2, NULL, 0);
-
-    return 1;
-}
+/* ==========================================================================   */
 
 int ntl_launch(char **args, char *inputFile, char *outputFile, int option) {
     int err = -1;
@@ -374,7 +387,6 @@ int ntl_launch(char **args, char *inputFile, char *outputFile, int option) {
             if (strcmp(args[0], builtin_str[j]) == 0) {
                 wasBuiltin = 1;
                 status = (*builtin_func[j])(args);
-                if(status == 0) return 0;
             }
         }
 
@@ -389,6 +401,8 @@ int ntl_launch(char **args, char *inputFile, char *outputFile, int option) {
 
     return status;
 }
+
+/* ======================================================================================== */
 
 int ntl_parsing(char **commands, char **separators, int numCommands, int numSeparators) {
     int executed = 0;
@@ -455,10 +469,6 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
                     else{
                         ntl_launch(commands + start, NULL, buffer_files[buffer], 1);
                     }
-//                    ntl_launch(commands + start,
-//                               (currSeparator > 0 && strcmp(separators[currSeparator - 1], "|") == 0) ? buffer_files[
-//                                       buffer ^ 1] : NULL,
-//                               buffer_files[buffer], 1);
 
                     // Advance to the next command
                     start = i++;
@@ -470,8 +480,6 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
 
 
                 } while (separators[currSeparator] != NULL && strcmp(separators[currSeparator], "|") == 0);
-
-//                printf("%s", separators[currSeparator]);
 
                 // Execute the last command in the pipe chain
 
@@ -525,7 +533,7 @@ int ntl_execute(char **args) {
     int numCommands = 0;
     int numSeparators = 0;
 
-    if(strcmp(args[0], "exit") == 0) return ntl_exit(args);
+    if(strcmp(args[0], "exit") == 0) return 0;
 
     if(strcmp(args[0], ">") == 0 && args[1] != NULL){
         args[0] = "touch";
@@ -552,8 +560,56 @@ int ntl_execute(char **args) {
     return 1;
 }
 
+/* ========================================================================================== */
+
+char* add_spaces(char* input) {
+    int len = strlen(input);
+    int separator_count = 0;  // Count of separators encountered
+    for (int i = 0; i < len; i++) {
+        if (input[i] == '|' || input[i] == '>' || input[i] == '<') {
+            if (input[i] == '>' && i < len-1 && input[i+1] == '>') {  // Found ">>" separator
+                i++;
+            }
+            separator_count++;
+        }
+    }
+    if (separator_count == 0) {  // No separators found, return original string
+        return input;
+    }
+    char* output = (char*) malloc((len+2*separator_count+1)*sizeof(char));  // Allocate space for output string
+    int pos = 0;  // Position in output string
+    for (int i = 0; i < len; i++) {
+        if (input[i] == '|' || input[i] == '>' || input[i] == '<') {  // Found a pipe or redirection symbol
+            if (input[i] == '>' && i < len-1 && input[i+1] == '>') {  // Found ">>" separator
+                i++;
+                if (pos > 0 && output[pos-1] != ' ') {  // Add space before symbol if needed
+                    output[pos++] = ' ';
+                }
+                output[pos++] = '>';  // Add ">>" symbol to output string
+                output[pos++] = '>';
+                if (i < len-1 && input[i+1] != ' ') {  // Add space after symbol if needed
+                    output[pos++] = ' ';
+                }
+            } else {  // Found a single separator
+                if (pos > 0 && output[pos-1] != ' ') {  // Add space before symbol if needed
+                    output[pos++] = ' ';
+                }
+                output[pos++] = input[i];  // Add symbol to output string
+                if (i < len-1 && input[i+1] != ' ') {  // Add space after symbol if needed
+                    output[pos++] = ' ';
+                }
+            }
+        } else {
+            output[pos++] = input[i];  // Copy character to output string
+        }
+    }
+    output[pos] = '\0';  // Add null terminator to output string
+    return output;
+}
+
 void ntl_loop() {
     char line[MAXLINE];
+    char *spacedLine;
     char *tokens[LIMIT];
     int numTokens;
     int status = 1;
@@ -566,8 +622,9 @@ void ntl_loop() {
         memset(line, '\0', MAXLINE);
 
         fgets(line, MAXLINE, stdin);
-        line[strcspn(line, "\n")] = 0;
-        if ((tokens[0] = strtok(line, " \n\t")) == NULL) continue;
+        spacedLine = add_spaces(line);
+        spacedLine[strcspn(spacedLine, "\n")] = 0;
+        if ((tokens[0] = strtok(spacedLine, " \n\t")) == NULL) continue;
 
 
         numTokens = 1;
@@ -575,7 +632,6 @@ void ntl_loop() {
 
         append_to_history(tokens, numTokens);
         status = ntl_execute(tokens);
-
     } while (status);
 }
 

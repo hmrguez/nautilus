@@ -1,0 +1,7 @@
+History
+
+Se implementaron los builtin history y again. El builtin history (L177) lo que hace es leer de un archivo ya creado sus contenidos. En este archivo estan los 10 ultimos comandos.
+
+Estos comandos se guardan una vez leida la linea usando append_to_history (L206). Como solo puedo guardar a lo sumo los 10 ultimos comandos en el history, este metodo de lo que se encarga es de mantener el archivo como si fuera una cola circular. Si llega el momento de que hay 10 elementos al momento de añadir en la cola entonces se popea el fondo y se pushea el nuevo comando.
+
+Luego esta el builtin again (L280) el cual si el usuario usa como comando again {indice}, busca en el archivo history y manda a ntl_execute() lo que se encuentra en el indice. Luego guarda ese comando en el historial de nuevo.  

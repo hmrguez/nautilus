@@ -25,5 +25,6 @@ void signalHandler_child(int p);
 // signal handler for SIGINT
 void signalHandler_int(int p);
 
+int sent_sigint = 0;
 
 int changeDirectory(char * args[]);
