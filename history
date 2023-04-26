@@ -1,10 +1,10 @@
-again 9 
-ls 
-history 
+exit 
+cat < file | grep s | sort > temp4 
 exit 
 exit 
-ls 
-history 
-history 
-history 
+> temp5 
+cat < file | grep s | sort > temp6 
+ls > file2 > ddd 
+exit 
+clear 
 exit 

@@ -341,6 +341,8 @@ int HandlePipeAndPipeOutput(int *pipeFd, char **pipeArgs, int option, char *outp
 int ntl_launch(char **args, char *inputFile, char *outputFile, int option) {
     int err = -1;
     int fileDescriptor;
+    int status = 0;
+    int wasBuiltin = 0;
 
     if ((pid = fork()) == -1) {
         printf("Child process could not be created\n");
@@ -368,7 +370,15 @@ int ntl_launch(char **args, char *inputFile, char *outputFile, int option) {
             RedirectAppendOutput(outputFile, fileDescriptor);
         }
 
-        if (execvp(args[0], args) == err) {
+        for (int j = 0; j < ntl_num_builtins(); ++j) {
+            if (strcmp(args[0], builtin_str[j]) == 0) {
+                wasBuiltin = 1;
+                status = (*builtin_func[j])(args);
+                if(status == 0) return 0;
+            }
+        }
+
+        if (wasBuiltin != 1 && execvp(args[0], args) == err) {
             printf("err");
             kill(getpid(), SIGTERM);
             return -1;
@@ -377,7 +387,7 @@ int ntl_launch(char **args, char *inputFile, char *outputFile, int option) {
 
     waitpid(pid, NULL, 0);
 
-    return 1;
+    return status;
 }
 
 int ntl_parsing(char **commands, char **separators, int numCommands, int numSeparators) {
@@ -386,6 +396,8 @@ int ntl_parsing(char **commands, char **separators, int numCommands, int numSepa
     int start = 0;
     int buffer = 0;
     char *buffer_files[] = {"buffer_file1", "buffer_file2"};
+
+    if(strcmp(commands[0], "exit") == 0) return 0;
 
     for (int i = 0; i < numCommands; i++) {
         if (executed == 0) {
@@ -513,11 +525,12 @@ int ntl_execute(char **args) {
     int numCommands = 0;
     int numSeparators = 0;
 
-    for (int j = 0; j < ntl_num_builtins(); ++j) {
-        if (strcmp(args[0], builtin_str[j]) == 0) {
-            return (*builtin_func[j])(args);
-        }
+    if(strcmp(args[0], "exit") == 0) return ntl_exit(args);
+
+    if(strcmp(args[0], ">") == 0 && args[1] != NULL){
+        args[0] = "touch";
     }
+
 
     for (int i = 0; args[i] != NULL; i++) {
         if (strcmp(args[i], "<") == 0 || strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0 ||
